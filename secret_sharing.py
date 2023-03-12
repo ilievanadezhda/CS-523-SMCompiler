@@ -4,7 +4,12 @@ Secret sharing scheme.
 
 from __future__ import annotations
 
+from random import randint
 from typing import List
+
+import jsonpickle
+
+FIELD_MODULUS = 2003
 
 
 class Share:
@@ -12,41 +17,53 @@ class Share:
     A secret share in a finite field.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, value, *args, **kwargs):
         # Adapt constructor arguments as you wish
-        raise NotImplementedError("You need to implement this method.")
+        self.value = value
 
     def __repr__(self):
         # Helps with debugging.
-        raise NotImplementedError("You need to implement this method.")
+        return f"{self.__class__.__name__}({repr(self.value)})"
 
     def __add__(self, other):
-        raise NotImplementedError("You need to implement this method.")
+        return Share(self.value + other.value)
 
     def __sub__(self, other):
-        raise NotImplementedError("You need to implement this method.")
+        return Share(self.value - other.value)
 
     def __mul__(self, other):
-        raise NotImplementedError("You need to implement this method.")
+        return Share(self.value * other.value)
+
+    def __hash__(self):
+        return hash(self.value)
 
     def serialize(self):
         """Generate a representation suitable for passing in a message."""
-        raise NotImplementedError("You need to implement this method.")
+        raise jsonpickle.encode(self)
 
     @staticmethod
     def deserialize(serialized) -> Share:
         """Restore object from its serialized representation."""
-        raise NotImplementedError("You need to implement this method.")
+        raise jsonpickle.decode(serialized, classes=Share)
 
 
 def share_secret(secret: int, num_shares: int) -> List[Share]:
     """Generate secret shares."""
-    raise NotImplementedError("You need to implement this method.")
+    shares = []
+    total_value = 0
+    for i in range(num_shares - 1):
+        share_value = randint(0, FIELD_MODULUS - 1)
+        shares.append(Share(share_value))
+        total_value += share_value
+    shares.append(Share(((secret - total_value) % FIELD_MODULUS)))
+    return shares
 
 
 def reconstruct_secret(shares: List[Share]) -> int:
     """Reconstruct the secret from shares."""
-    raise NotImplementedError("You need to implement this method.")
-
+    sum = 0
+    for share in shares:
+        sum += share.value
+    return sum % FIELD_MODULUS
 
 # Feel free to add as many methods as you want.
