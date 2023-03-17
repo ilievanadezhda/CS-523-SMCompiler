@@ -134,10 +134,12 @@ class SMCParty:
             shares: Dict[bytes, Share]
     ) -> Share:
         # complex operation
-        if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
+        if isinstance(expr, AddOperation):
             return self.process_expression(expr.left, shares) + self.process_expression(expr.right, shares)
+        elif isinstance(expr, MultOperation):
+            return self.process_expression(expr.left, shares) * self.process_expression(expr.right, shares)
         # secret
-        if isinstance(expr, Secret):
+        elif isinstance(expr, Secret):
             return shares[expr.id]
         # scalar
         return Share(expr.value)

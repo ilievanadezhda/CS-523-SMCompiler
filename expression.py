@@ -82,6 +82,7 @@ class Secret(Expression):
             value: Optional[int] = None,
             id: Optional[bytes] = None
         ):
+        self.value = value
         super().__init__(id)
 
     def __repr__(self):
@@ -100,6 +101,9 @@ class AddOperation(Expression):
         self.right = right
         super().__init__(id)
 
+    def __repr__(self):
+        return f"({repr(self.left)} + {repr(self.right)})"
+
 
 class MultOperation(Expression):
 
@@ -108,11 +112,36 @@ class MultOperation(Expression):
         self.right = right
         super().__init__(id)
 
+    def __repr__(self):
+        return f"{repr(self.left)} * {repr(self.right)}"
+
 
 # expression-related helper methods
+
+# Count the number of secrets in an expression.
 def count_num_secrets(expr: Expression) -> int:
     if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
         return count_num_secrets(expr.left) + count_num_secrets(expr.right)
     if isinstance(expr, Secret):
         return 1
     return 0
+
+# Check if expression contains only scalars.
+def is_scalar_expr(expr: Expression) -> bool:
+    if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
+        return is_scalar_expr(expr.left) and is_scalar_expr(expr.right)
+    if isinstance(expr, Scalar):
+        return True
+    return False
+
+# Count the number of multiplications in an expression.
+def count_num_mults(expr: Expression) -> int:
+    if isinstance(expr, AddOperation):
+        return count_num_mults(expr.left) + count_num_mults(expr.right)
+    if isinstance(expr, MultOperation):
+        rec_total = count_num_mults(expr.left) + count_num_mults(expr.right)
+        if not is_scalar_expr(expr.left) and not is_scalar_expr(expr.right):
+            rec_total += 1
+        return rec_total
+    return 0
+
