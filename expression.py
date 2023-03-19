@@ -11,8 +11,7 @@ MODIFY THIS FILE.
 
 import base64
 import random
-from typing import Optional
-
+from typing import Optional, List
 
 ID_BYTES = 4
 
@@ -32,7 +31,7 @@ class Expression:
     def __init__(
             self,
             id: Optional[bytes] = None
-        ):
+    ):
         # If ID is not given, then generate one.
         if id is None:
             id = gen_id()
@@ -50,7 +49,6 @@ class Expression:
     def __hash__(self):
         return hash(self.id)
 
-
     # Feel free to add as many methods as you like.
 
 
@@ -61,7 +59,7 @@ class Scalar(Expression):
             self,
             value: int,
             id: Optional[bytes] = None
-        ):
+    ):
         self.value = value
         super().__init__(id)
 
@@ -81,7 +79,7 @@ class Secret(Expression):
             self,
             value: Optional[int] = None,
             id: Optional[bytes] = None
-        ):
+    ):
         self.value = value
         super().__init__(id)
 
@@ -126,6 +124,7 @@ def count_num_secrets(expr: Expression) -> int:
         return 1
     return 0
 
+
 # Check if expression contains only scalars.
 def is_scalar_expr(expr: Expression) -> bool:
     if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
@@ -133,6 +132,7 @@ def is_scalar_expr(expr: Expression) -> bool:
     if isinstance(expr, Scalar):
         return True
     return False
+
 
 # Count the number of multiplications in an expression.
 def count_num_mults(expr: Expression) -> int:
@@ -145,3 +145,10 @@ def count_num_mults(expr: Expression) -> int:
         return rec_total
     return 0
 
+
+def collect_secret_ids(expr: Expression) -> List[bytes]:
+    if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
+        return collect_secret_ids(expr.left) + collect_secret_ids(expr.right)
+    if isinstance(expr, Secret):
+        return [expr.id]
+    return []
