@@ -3,18 +3,15 @@ Implementation of an SMC client.
 
 MODIFY THIS FILE.
 """
-# You might want to import more classes if needed.
-
+import time
 from typing import (
     Dict
 )
 
-import jsonpickle
-
 from communication import Communication
 from expression import (
     Expression,
-    Secret, count_num_secrets, AddOperation, MultOperation
+    Secret, collect_secret_ids, AddOperation, MultOperation
 )
 from message_utils import ShareMessage, SECRET_SHARE_LABEL, RESULT_SHARE_LABEL, ResultShareMessage, Message, \
     PUBLISH_RESULT_LABEL
@@ -22,6 +19,7 @@ from protocol import ProtocolSpec
 from secret_sharing import (
     share_secret, Share, reconstruct_secret,
 )
+
 
 # Feel free to add as many imports as you want.
 
@@ -51,6 +49,8 @@ class SMCParty:
 
         self.client_id = client_id
         self.protocol_spec = protocol_spec
+        self.protocol_spec.participant_ids.sort()
+        self.num_participants = len(self.protocol_spec.participant_ids)
         self.value_dict = value_dict
 
     def is_leader(self) -> bool:
@@ -65,67 +65,96 @@ class SMCParty:
         """ Is the current party the one with the provided client id. """
         return self.client_id == participant
 
+    def get_other_participants_list(self):
+        return [participant for participant in self.protocol_spec.participant_ids if participant != self.client_id]
+
+    def get_personal_shares(self) -> Dict[bytes, list[Share]]:
+        return {secret.id: share_secret(value, self.num_participants) for secret, value in self.value_dict.items()}
+
+    def disseminate_personal_shares(self, personal_shares: Dict[bytes, list[Share]]) -> Dict[bytes, Share]:
+        shares_dict = {}
+        for i in range(self.num_participants):
+            for (id, shares) in personal_shares.items():
+                if self.is_self(self.protocol_spec.participant_ids[i]):
+                    shares_dict[id] = shares[i]
+                else:
+                    self.send_secret_share(ShareMessage(id, shares[i]), self.protocol_spec.participant_ids[i])
+        return shares_dict
+
+    def collect_secret_ids_other_parties(self):
+        personal_secret_ids = [secret.id for secret in self.value_dict.keys()]
+        all_secret_ids = collect_secret_ids(self.protocol_spec.expr)
+        return [secret_id for secret_id in all_secret_ids if secret_id not in personal_secret_ids]
+
+    def send_secret_share(self, share: ShareMessage, destination: str):
+        self.comm.send_private_message(destination, SECRET_SHARE_LABEL + share.id, share.serialize())
+
+    def retrieve_secret_share(self, secret_id: str) -> ShareMessage:
+        return ShareMessage.deserialize(self.comm.retrieve_private_message(SECRET_SHARE_LABEL + secret_id))
+
+    def send_result_share(self, share: ResultShareMessage, destination: str):
+        self.comm.send_private_message(destination, RESULT_SHARE_LABEL + self.client_id, share.serialize())
+
+    def retrieve_result_share(self, participant: str) -> ResultShareMessage:
+        return ResultShareMessage.deserialize(self.comm.retrieve_private_message(RESULT_SHARE_LABEL + participant))
+
+    def publish_final_result(self, message: Message):
+        self.comm.publish_message(PUBLISH_RESULT_LABEL, message.serialize())
+
+    def retrieve_final_result(self, sender: str) -> Message:
+        return Message.deserialize(self.comm.retrieve_public_message(sender, PUBLISH_RESULT_LABEL))
+
+    def compute_delay_in_seconds(self):
+        return self.num_participants - 1
+
     def run(self) -> int:
         """
         The method the client use to do the SMC.
         """
-        participants = self.protocol_spec.participant_ids
-        num_participants = len(participants)
         expression = self.protocol_spec.expr
 
         # share secrets that belong to this client
-        personal_shares = {}
-        for secret, value in self.value_dict.items():
-            personal_shares[secret.id] = share_secret(value, num_participants)
+        personal_shares = self.get_personal_shares()
+        # send personal shares and create map of secret Share(s) per ID
+        shares_dict = self.disseminate_personal_shares(personal_shares)
 
-        # send shares via private messages, including id and share value
-        # and create map of secret Share(s) per ID
-        shares_dict = {}
-        for i in range(num_participants):
-            for (id, shares) in personal_shares.items():
-                if self.is_self(participants[i]):
-                    shares_dict[id] = shares[i]
-                else:
-                    private_message = ShareMessage(id, shares[i])
-                    self.comm.send_private_message(participants[i], SECRET_SHARE_LABEL, private_message.json_rep())
+        secret_ids_to_receive = self.collect_secret_ids_other_parties()
+        for sid in secret_ids_to_receive:
+            secret_share = self.retrieve_secret_share(sid.decode())
+            shares_dict[secret_share.id.encode()] = secret_share.share
 
-        # wait for private share messages from other parties
-        total_messages_to_receive = count_num_secrets(expression) - len(personal_shares)
-        for _ in range(total_messages_to_receive):
-            received_share = self.comm.retrieve_private_message(SECRET_SHARE_LABEL)
-            secret_share = jsonpickle.decode(received_share, classes=ShareMessage)
-            shares_dict[secret_share.id] = secret_share.share
-
-        # todo: do we need this step below ?
-        # wait Start_Protocol message from all participants (excluding oneself)
-
+        # process locally
         final_result_share = self.process_expression(expression, shares_dict)
-        if self.is_leader():
-            # wait for remaining final_result_share(s)
-            all_result_shares = []
-            for _ in range(num_participants - 1):
-                received_final_share = self.comm.retrieve_private_message(RESULT_SHARE_LABEL)
-                final_share_model = jsonpickle.decode(received_final_share, classes=ResultShareMessage)
-                all_result_shares.append(final_share_model.share)
-            all_result_shares.append(final_result_share)
+        print(self.client_id + " result share: " + str(final_result_share))
 
-            # call reconstruct result
+        # protocol phase one
+        all_result_shares = [final_result_share]
+        if not self.is_leader():
+            # send final_result_share to leader
+            self.send_result_share(ResultShareMessage(final_result_share), self.get_leader())
+            time.sleep(self.compute_delay_in_seconds())
+        else:
+            # wait for remaining final_result_share(s)
+            other_participants = self.get_other_participants_list()
+            time.sleep(self.compute_delay_in_seconds())
+            for participant in other_participants:
+                all_result_shares.append(self.retrieve_result_share(participant).share)
+            print("leader has: " + str(all_result_shares))
+
+        # protocol phase two
+        if self.is_leader():
+            # reconstruct and publish result
             result = reconstruct_secret(all_result_shares)
-            # publish final result
-            result_message = Message(result)
-            self.comm.publish_message(PUBLISH_RESULT_LABEL, result_message.json_rep())
+            self.publish_final_result(Message(result))
 
             return result
         else:
-            # send final_result_share to leader
-            leader = self.get_leader()
-            result_share_message = ResultShareMessage(final_result_share)
-            self.comm.send_private_message(leader, RESULT_SHARE_LABEL, result_share_message.json_rep())
-
+            time.sleep(self.compute_delay_in_seconds())
             # fetch public result
-            result_received = self.comm.retrieve_public_message(leader, PUBLISH_RESULT_LABEL)
-            result_message = jsonpickle.decode(result_received, classes=Message)
-            return result_message.value
+            result_deserialized = self.retrieve_final_result(self.get_leader())
+            print(self.client_id + " receives from leader " + str(result_deserialized))
+
+            return result_deserialized.value
 
     # Suggestion: To process expressions, make use of the *visitor pattern* like so:
     def process_expression(

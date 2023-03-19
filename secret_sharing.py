@@ -4,10 +4,11 @@ Secret sharing scheme.
 
 from __future__ import annotations
 
+import json
 from random import randint
 from typing import List
 
-import jsonpickle
+from json_utils import json_serialize
 
 FIELD_MODULUS = 2003
 
@@ -39,12 +40,13 @@ class Share:
 
     def serialize(self):
         """Generate a representation suitable for passing in a message."""
-        raise jsonpickle.encode(self)
+        return json_serialize(self)
 
     @staticmethod
     def deserialize(serialized) -> Share:
         """Restore object from its serialized representation."""
-        raise jsonpickle.decode(serialized, classes=Share)
+        dict_obj = json.loads(serialized)
+        return Share(dict_obj['value'])
 
 
 def share_secret(secret: int, num_shares: int) -> List[Share]:

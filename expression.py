@@ -11,8 +11,7 @@ MODIFY THIS FILE.
 
 import base64
 import random
-from typing import Optional
-
+from typing import Optional, List
 
 ID_BYTES = 4
 
@@ -116,3 +115,11 @@ def count_num_secrets(expr: Expression) -> int:
     if isinstance(expr, Secret):
         return 1
     return 0
+
+
+def collect_secret_ids(expr: Expression) -> List[bytes]:
+    if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
+        return collect_secret_ids(expr.left) + collect_secret_ids(expr.right)
+    if isinstance(expr, Secret):
+        return [expr.id]
+    return []
