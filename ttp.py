@@ -4,21 +4,18 @@ Trusted parameters generator.
 MODIFY THIS FILE.
 """
 
-import collections
+# Feel free to add as many imports as you want.
+from random import randint
 from typing import (
-    Dict,
     Set,
     Tuple,
 )
 
-from communication import Communication
-from secret_sharing import(
+from secret_sharing import (
     share_secret,
-    Share,
+    Share, FIELD_MODULUS,
 )
 
-# Feel free to add as many imports as you want.
-from random import randint
 
 class TrustedParamGenerator:
     """
@@ -47,21 +44,22 @@ class TrustedParamGenerator:
         # An operation is identified by its id (op_id)
         # We can use the id of multiplication operation for example.
         if op_id not in self.beaver_triplets:
-            self.beaver_triplets[op_id] = BeaverTriplet(num_participants = len(self.participant_ids))
+            self.beaver_triplets[op_id] = BeaverTriplet(len(self.participant_ids))
 
         return self.beaver_triplets[op_id].get_shares(self.clients[client_id])
 
     # Feel free to add as many methods as you want.
 
+
 class BeaverTriplet:
     def __init__(self, num_participants) -> None:
-        self.a = randint(0, Share.FIELD_MODULUS)
-        self.b = randint(0, Share.FIELD_MODULUS)
-        self.c = self.a * self.b % Share.FIELD_MODULUS
-        
+        self.a = randint(0, FIELD_MODULUS - 1)
+        self.b = randint(0, FIELD_MODULUS - 1)
+        self.c = self.a * self.b % FIELD_MODULUS
+
         self.a_shares = share_secret(self.a, num_participants)
         self.b_shares = share_secret(self.b, num_participants)
         self.c_shares = share_secret(self.c, num_participants)
-    
+
     def get_shares(self, client_id) -> Tuple[Share, Share, Share]:
         return self.a_shares[client_id], self.b_shares[client_id], self.c_shares[client_id]
