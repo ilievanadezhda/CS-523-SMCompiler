@@ -9,6 +9,7 @@ from random import randint
 from typing import List
 
 from json_utils import json_serialize
+from typing import Optional
 
 FIELD_MODULUS = 2003
 
@@ -22,22 +23,55 @@ class Share:
     # For example Share((self.value + other.value) % self.FIELD_MOD))
     # It would not change much other than the fact that the numbers would be smaller.
 
-    def __init__(self, value, *args, **kwargs):
+    def __init__(self, value, leader_flag = False, *args, **kwargs):
         # Adapt constructor arguments as you wish
         self.value = value % FIELD_MODULUS
+        self.leader_flag = leader_flag
 
     def __repr__(self):
         # Helps with debugging.
         return f"{self.__class__.__name__}({repr(self.value)})"
 
     def __add__(self, other):
-        return Share((self.value + other.value) % FIELD_MODULUS)
+        if isinstance(other, Share):
+            return Share((self.value + other.value) % FIELD_MODULUS, self.leader_flag)
+        elif isinstance(other, Constant):
+            if self.leader_flag:
+                return Share((self.value + other.value) % FIELD_MODULUS, self.leader_flag)
+            else:
+                return Share((self.value) % FIELD_MODULUS, self.leader_flag)
+        else:
+            raise TypeError("This opperation is not supported!")
 
     def __sub__(self, other):
-        return Share((self.value - other.value) % FIELD_MODULUS)
+        if isinstance(other, Share):
+            return Share((self.value - other.value) % FIELD_MODULUS, self.leader_flag)
+        elif isinstance(other, Constant):
+            if self.leader_flag:
+                return Share((self.value - other.value) % FIELD_MODULUS, self.leader_flag)
+            else:
+                return Share((self.value) % FIELD_MODULUS, self.leader_flag)
+        else:
+            raise TypeError("This opperation is not supported!")
 
     def __mul__(self, other):
-        return Share((self.value * other.value) % FIELD_MODULUS)
+        if isinstance(other, Share):
+            # TODO
+            # If we follow this approach we will need some communication to happen here
+            # For that we will need to pass things from SMC_Party to the Shares
+            # The Shares need to know which client they belong to. They need to know the client_id, server_host, server_port to open communication with the server.
+            # They also need an ID to identify themselves. Constants also need ID. 
+            # We can derive the op_id needed for the Beaver triplet from the Share IDs. 
+            # For Share ID we can just put secret.id that is used in smc_party. Every share from the same secret will have the same ID (at different parties).
+            # Constants can take the ID from the Scalar they are created from.
+            # When returning the result of Share+Share we need to deterministically create IDs for the new Share that is being created. 
+            # We can do that by concatenating the IDs of the two Shares that are being added.
+            # It is smart to have a different BEAVER_LABEL for each multiplication, for the communication part. 
+            return Share((self.value * other.value) % FIELD_MODULUS, self.leader_flag)
+        elif isinstance(other, Constant):
+            return Share((self.value * other.value) % FIELD_MODULUS, self.leader_flag)
+        else:
+            raise TypeError("This opperation is not supported!")
 
     def __hash__(self):
         return hash(self.value)
@@ -52,6 +86,61 @@ class Share:
         dict_obj = json.loads(serialized)
         return Share(dict_obj['value'])
 
+class Constant:
+    """
+    A constant in a finite field.
+    """
+    def __init__(self, value, leader_flag = False, *args, **kwargs):
+        # Adapt constructor arguments as you wish
+        self.value = value % FIELD_MODULUS
+        self.leader_flag = leader_flag
+
+    def __repr__(self):
+        # Helps with debugging.
+        return f"{self.__class__.__name__}({repr(self.value)})"
+
+    def __add__(self, other):
+        if isinstance(other, Share):
+            if self.leader_flag:
+                return Share((self.value + other.value) % FIELD_MODULUS, self.leader_flag)
+            else:
+                return Share((other.value) % FIELD_MODULUS, self.leader_flag)
+        elif isinstance(other, Constant):
+            return Constant((self.value + other.value) % FIELD_MODULUS, self.leader_flag)
+        else:
+            raise TypeError("This opperation is not supported!")
+    def __sub__(self, other):
+        if isinstance(other, Share):
+            if self.leader_flag:
+                return Share((self.value - other.value) % FIELD_MODULUS, self.leader_flag)
+            else:
+                return Share((-other.value) % FIELD_MODULUS, self.leader_flag)
+        elif isinstance(other, Constant):
+            return Constant((self.value - other.value) % FIELD_MODULUS, self.leader_flag)
+        else:
+            raise TypeError("This opperation is not supported!")
+    def __mul__(self, other):
+        if isinstance(other, Share):
+            return Share((self.value * other.value) % FIELD_MODULUS, self.leader_flag)
+        elif isinstance(other, Constant):
+            return Constant((self.value * other.value) % FIELD_MODULUS, self.leader_flag)
+        else:
+            raise TypeError("This opperation is not supported!")
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def serialize(self):
+        """Generate a representation suitable for passing in a message."""
+        return json_serialize(self)
+
+    @staticmethod
+    def deserialize(serialized) -> Constant:
+        """Restore object from its serialized representation."""
+        dict_obj = json.loads(serialized)
+        return Constant(dict_obj['value'])
+
+# Methods 
 
 def share_secret(secret: int, num_shares: int) -> List[Share]:
     """Generate secret shares."""
@@ -65,3 +154,4 @@ def reconstruct_secret(shares: List[Share]) -> int:
     return sum([share.value for share in shares]) % FIELD_MODULUS
 
 # Feel free to add as many methods as you want.
+

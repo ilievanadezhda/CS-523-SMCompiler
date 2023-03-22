@@ -11,13 +11,18 @@ from typing import (
 from communication import Communication
 from expression import (
     Expression,
-    Secret, collect_secret_ids, AddOperation, MultOperation
+    Secret, 
+    Scalar,
+    AddOperation, 
+    MultOperation,
+    is_scalar_expr,
+    collect_secret_ids
 )
 from message_utils import ShareMessage, SECRET_SHARE_LABEL, RESULT_SHARE_LABEL, ResultShareMessage, Message, \
     PUBLISH_RESULT_LABEL
 from protocol import ProtocolSpec
 from secret_sharing import (
-    share_secret, Share, reconstruct_secret,
+    share_secret, Share, Constant, reconstruct_secret,
 )
 
 
@@ -52,7 +57,7 @@ class SMCParty:
         self.protocol_spec.participant_ids.sort()
         self.num_participants = len(self.protocol_spec.participant_ids)
         self.value_dict = value_dict
-
+    
     def is_leader(self) -> bool:
         """ Should the party do the operations that are done by one party exclusively. """
         return self.client_id == self.protocol_spec.participant_ids[0]
@@ -124,19 +129,24 @@ class SMCParty:
             shares_dict[secret_share.id.encode()] = secret_share.share
 
         # process locally
-        final_result_share = self.process_expression(expression, shares_dict)
+        final_result_share = self.process_expression(expression, shares_dict, self.is_leader())
         print(self.client_id + " result share: " + str(final_result_share))
+
+        # edge case where the expression to be computed consists of scalars only.
+        # every party will have the same result share, so we can just return it.
+        if isinstance(final_result_share, Constant):
+            return final_result_share.value
 
         # protocol phase one
         all_result_shares = [final_result_share]
         if not self.is_leader():
             # send final_result_share to leader
             self.send_result_share(ResultShareMessage(final_result_share), self.get_leader())
-            time.sleep(self.compute_delay_in_seconds())
+            # time.sleep(self.compute_delay_in_seconds())
         else:
             # wait for remaining final_result_share(s)
             other_participants = self.get_other_participants_list()
-            time.sleep(self.compute_delay_in_seconds())
+            # time.sleep(self.compute_delay_in_seconds())
             for participant in other_participants:
                 all_result_shares.append(self.retrieve_result_share(participant).share)
             print("leader has: " + str(all_result_shares))
@@ -146,31 +156,33 @@ class SMCParty:
             # reconstruct and publish result
             result = reconstruct_secret(all_result_shares)
             self.publish_final_result(Message(result))
-
             return result
         else:
-            time.sleep(self.compute_delay_in_seconds())
+            # time.sleep(self.compute_delay_in_seconds())
             # fetch public result
             result_deserialized = self.retrieve_final_result(self.get_leader())
             print(self.client_id + " receives from leader " + str(result_deserialized))
-
             return result_deserialized.value
 
     # Suggestion: To process expressions, make use of the *visitor pattern* like so:
     def process_expression(
             self,
             expr: Expression,
-            shares: Dict[bytes, Share]
-    ) -> Share:
-        # complex operation
+            shares: Dict[bytes, Share],
+            leader_flag: bool
+    ):
+        # Complex operation
         if isinstance(expr, AddOperation):
-            return self.process_expression(expr.left, shares) + self.process_expression(expr.right, shares)
+            return self.process_expression(expr.left, shares, leader_flag) + self.process_expression(expr.right, shares, leader_flag)
         elif isinstance(expr, MultOperation):
-            return self.process_expression(expr.left, shares) * self.process_expression(expr.right, shares)
-        # secret
+            return self.process_expression(expr.left, shares, leader_flag) * self.process_expression(expr.right, shares, leader_flag)     
+        # Secret
         elif isinstance(expr, Secret):
-            return shares[expr.id]
-        # scalar
-        return Share(expr.value)
+            return Share(shares[expr.id].value, leader_flag)
+        # Scalar
+        elif isinstance(expr, Scalar):
+            return Constant(expr.value, leader_flag)
 
     # Feel free to add as many methods as you want.
+
+
