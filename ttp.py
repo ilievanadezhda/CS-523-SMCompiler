@@ -42,16 +42,15 @@ class TrustedParamGenerator:
         """
         # If the triplet for the operation has not been generated yet, generate it.
         # An operation is identified by its id (op_id)
-        # We can use the id of multiplication operation for example.
         if op_id not in self.beaver_triplets:
             self.beaver_triplets[op_id] = BeaverTriplet(len(self.participant_ids))
 
         return self.beaver_triplets[op_id].get_shares(self.clients[client_id])
 
-    # Feel free to add as many methods as you want.
-
 
 class BeaverTriplet:
+    """ Creates and holds beaver triplet shares for given number of participants. """
+
     def __init__(self, num_participants) -> None:
         self.a = randint(0, FIELD_MODULUS - 1)
         self.b = randint(0, FIELD_MODULUS - 1)

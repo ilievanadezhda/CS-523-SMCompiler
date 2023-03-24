@@ -1,12 +1,9 @@
 import time
 from multiprocessing import Process, Queue
 
-import pytest
-
 from expression import Scalar, Secret
 from protocol import ProtocolSpec
 from server import run
-
 from smc_party import SMCParty
 
 
@@ -67,13 +64,77 @@ def suite(parties, expr, expected):
     for result in results:
         assert result == expected
 
+
+def test_mult0():
+    alice_secret = Secret()
+    bob_secret = Secret()
+    charlie_secret = Secret()
+    dave_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 5},
+        "Bob": {bob_secret: 6},
+        "Charlie": {charlie_secret: 2},
+        "Dave": {dave_secret: 3},
+    }
+
+    expr = alice_secret * bob_secret + charlie_secret * dave_secret
+    expected = 5 * 6 + 2 * 3
+    suite(parties, expr, expected)
+
+
+def test_mult1():
+    alice_secret = Secret()
+    bob_secret = Secret()
+    dave_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 5},
+        "Bob": {bob_secret: 6},
+        "Dave": {dave_secret: 3},
+    }
+
+    expr = alice_secret * bob_secret * dave_secret
+    expected = 5 * 6 * 3
+    suite(parties, expr, expected)
+
+
+def test_mult2():
+    alice_secret = Secret()
+    bob_secret = Secret()
+    dave_secret = Secret()
+    scalar = Scalar(5)
+
+    parties = {
+        "Alice": {alice_secret: 5},
+        "Bob": {bob_secret: 6},
+        "Dave": {dave_secret: 3},
+    }
+
+    expr = alice_secret * bob_secret * (dave_secret + scalar)
+    expected = 5 * 6 * (3 + 5)
+    suite(parties, expr, expected)
+
+
+def test_mult3():
+    alice_secret1 = Secret()
+    alice_secret2 = Secret()
+
+    parties = {
+        "Alice": {alice_secret1: 3, alice_secret2: 5},
+    }
+
+    expr = alice_secret1 * alice_secret2
+    expected = 3 * 5
+    suite(parties, expr, expected)
+
+
 def test_suite0():
     """
     f(a, b) = a + b + K
     """
     alice_secret = Secret()
     bob_secret = Secret()
-
 
     parties = {
         "Alice": {alice_secret: 3000},
@@ -83,6 +144,7 @@ def test_suite0():
     expr = alice_secret + bob_secret + Scalar(10)
     expected = (3000 + 5000 + 10) % 2003
     suite(parties, expr, expected)
+
 
 def test_suite1():
     """
@@ -101,7 +163,6 @@ def test_suite1():
     suite(parties, expr, expected)
 
 
-
 def test_suite2():
     """
     f(a, b) = Ka - b
@@ -114,8 +175,8 @@ def test_suite2():
         "Bob": {bob_secret: 3},
     }
 
-    expr = (Scalar(2)*alice_secret - bob_secret)
-    expected = 2*14 -3
+    expr = (Scalar(2) * alice_secret - bob_secret)
+    expected = 2 * 14 - 3
     suite(parties, expr, expected)
 
 
@@ -133,8 +194,8 @@ def test_suite3():
         "Charlie": {charlie_secret: 2}
     }
 
-    expr = alice_secret*Scalar(2)*Scalar(3) + bob_secret + charlie_secret
-    expected = 3*2*3 + 14 + 2
+    expr = alice_secret * Scalar(2) * Scalar(3) + bob_secret + charlie_secret
+    expected = 3 * 2 * 3 + 14 + 2
     suite(parties, expr, expected)
 
 
@@ -151,9 +212,10 @@ def test_suite4():
 
     }
 
-    expr = Scalar(2) + Scalar(3)*alice_secret*Scalar(2) + Scalar(5)*bob_secret
-    expected = 2 + 3*3*2 + 5*14
+    expr = Scalar(2) + Scalar(3) * alice_secret * Scalar(2) + Scalar(5) * bob_secret
+    expected = 2 + 3 * 3 * 2 + 5 * 14
     suite(parties, expr, expected)
+
 
 def test_suite5():
     """
@@ -174,6 +236,7 @@ def test_suite5():
     expected = 3 + 14 + 2 + (2 + 3 + 5)
     suite(parties, expr, expected)
 
+
 def test_suite6():
     """
     f(a, b, c) = K1 + K2 + K3 + K4 + K5 + K6
@@ -193,6 +256,7 @@ def test_suite6():
     expected = 2 + 3 + 5 + 2 + 3 + 5
     suite(parties, expr, expected)
 
+
 def test_suite7():
     """
     f(a, b, c) = K1*K2
@@ -208,8 +272,8 @@ def test_suite7():
 
     }
 
-    expr = Scalar(2)*Scalar(3)
-    expected = 2*3
+    expr = Scalar(2) * Scalar(3)
+    expected = 2 * 3
     suite(parties, expr, expected)
 
 
@@ -232,6 +296,7 @@ def test_suite8():
     expected = 3 + 14 + 2 + (2 + 3 + 5 * 2 * 3)
     suite(parties, expr, expected)
 
+
 def test_suite9():
     """
     f(a, b, c) = K1*K2*K3*K4*K5
@@ -250,6 +315,7 @@ def test_suite9():
     expr = Scalar(2) * Scalar(3) * Scalar(5) * Scalar(2) * Scalar(3)
     expected = 2 * 3 * 5 * 2 * 3
     suite(parties, expr, expected)
+
 
 def test_suite10():
     """
@@ -270,6 +336,7 @@ def test_suite10():
     expected = 2
     suite(parties, expr, expected)
 
+
 def test_suite11():
     """
     f(a, b, c) = K1*K2*a
@@ -288,6 +355,7 @@ def test_suite11():
     expr = Scalar(2) * Scalar(3) * alice_secret
     expected = 2 * 3 * 3
     suite(parties, expr, expected)
+
 
 def test_suite12():
     """
@@ -308,6 +376,7 @@ def test_suite12():
     expected = 2 * 3 + 3 * 14 + 5 * 2
     suite(parties, expr, expected)
 
+
 def test_suite13():
     """
     f(a, b, c) = K1*a
@@ -326,6 +395,7 @@ def test_suite13():
     expr = Scalar(5) * alice_secret
     expected = 5 * 3
     suite(parties, expr, expected)
+
 
 def test_suite14():
     """
@@ -346,6 +416,7 @@ def test_suite14():
     expected = 5 * 3 + 2
     suite(parties, expr, expected)
 
+
 def test_suite15():
     """
     f(a, b) = a + b + K1 + K2 + K3
@@ -362,6 +433,7 @@ def test_suite15():
     expected = 113 + 5 + 2 + 10 + 3
     suite(parties, expr, expected)
 
+
 def test_suite16():
     """
     f(a, b) = (K1 + K2) * a
@@ -376,9 +448,10 @@ def test_suite16():
         "Charlie": {charlie_secret: 7},
     }
 
-    expr = (Scalar(10) + Scalar(5))*alice_secret
+    expr = (Scalar(10) + Scalar(5)) * alice_secret
     expected = (10 + 5) * 3
     suite(parties, expr, expected)
+
 
 def test_suite17():
     """
@@ -394,4 +467,20 @@ def test_suite17():
 
     expr = (alice_secret * bob_secret)
     expected = (3 * 5)
+    suite(parties, expr, expected)
+
+
+def test_suite18():
+    """
+    f(a_1, a_2) = (K - a_1) * a_2
+    """
+    alice_secret1 = Secret()
+    alice_secret2 = Secret()
+
+    parties = {
+        "Alice": {alice_secret1: 3, alice_secret2: 5},
+    }
+
+    expr = Scalar(20) - alice_secret1 * alice_secret2
+    expected = 20 - 3 * 5
     suite(parties, expr, expected)

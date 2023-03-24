@@ -93,6 +93,7 @@ class Secret(Expression):
 
 # Feel free to add as many classes as you like.
 class AddOperation(Expression):
+    """ Represents an addition operation of two other expressions. """
 
     def __init__(self, left: Expression, right: Expression, id: Optional[bytes] = None):
         self.left = left
@@ -104,6 +105,7 @@ class AddOperation(Expression):
 
 
 class MultOperation(Expression):
+    """ Represents a multiplication operation of two other expressions. """
 
     def __init__(self, left: Expression, right: Expression, id: Optional[bytes] = None):
         self.left = left
@@ -114,10 +116,8 @@ class MultOperation(Expression):
         return f"{repr(self.left)} * {repr(self.right)}"
 
 
-# expression-related helper methods
-
-# Count the number of secrets in an expression.
 def count_num_secrets(expr: Expression) -> int:
+    """ Returns the total number of secrets the provided expression. """
     if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
         return count_num_secrets(expr.left) + count_num_secrets(expr.right)
     if isinstance(expr, Secret):
@@ -125,28 +125,8 @@ def count_num_secrets(expr: Expression) -> int:
     return 0
 
 
-# Check if expression contains only scalars.
-def is_scalar_expr(expr: Expression) -> bool:
-    if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
-        return is_scalar_expr(expr.left) and is_scalar_expr(expr.right)
-    if isinstance(expr, Scalar):
-        return True
-    return False
-
-
-# Count the number of multiplications in an expression.
-def count_num_mults(expr: Expression) -> int:
-    if isinstance(expr, AddOperation):
-        return count_num_mults(expr.left) + count_num_mults(expr.right)
-    if isinstance(expr, MultOperation):
-        rec_total = count_num_mults(expr.left) + count_num_mults(expr.right)
-        if not is_scalar_expr(expr.left) and not is_scalar_expr(expr.right):
-            rec_total += 1
-        return rec_total
-    return 0
-
-
 def collect_secret_ids(expr: Expression) -> List[bytes]:
+    """ Returns list of ids of all secrets in the provided expression. """
     if isinstance(expr, AddOperation) or isinstance(expr, MultOperation):
         return collect_secret_ids(expr.left) + collect_secret_ids(expr.right)
     if isinstance(expr, Secret):
