@@ -3,25 +3,25 @@ Implementation of an SMC client.
 
 MODIFY THIS FILE.
 """
-import time
 from typing import (
-    Dict
+    Dict, List
 )
 
 from communication import Communication
 from expression import (
     Expression,
-    Secret, collect_secret_ids, AddOperation, MultOperation
+    Secret,
+    Scalar,
+    AddOperation,
+    MultOperation,
+    collect_secret_ids
 )
 from message_utils import ShareMessage, SECRET_SHARE_LABEL, RESULT_SHARE_LABEL, ResultShareMessage, Message, \
-    PUBLISH_RESULT_LABEL
+    PUBLISH_RESULT_LABEL, BEAVER_CONST_SHARE_LABEL, BeaverConstShareMessage, BEAVER_CONST_RESULT_LABEL, \
+    BeaverConstResultMessage
 from protocol import ProtocolSpec
 from secret_sharing import (
-    share_secret, Share, reconstruct_secret,
-)
-
-
-# Feel free to add as many imports as you want.
+    share_secret, Share, Constant, reconstruct_secret, FIELD_MODULUS, )
 
 
 class SMCParty:
@@ -44,11 +44,12 @@ class SMCParty:
             server_port: int,
             protocol_spec: ProtocolSpec,
             value_dict: Dict[Secret, int]
-        ):
+    ):
         self.comm = Communication(server_host, server_port, client_id)
 
         self.client_id = client_id
         self.protocol_spec = protocol_spec
+        # each party has sorted list of all participants in the protocol
         self.protocol_spec.participant_ids.sort()
         self.num_participants = len(self.protocol_spec.participant_ids)
         self.value_dict = value_dict
@@ -65,13 +66,16 @@ class SMCParty:
         """ Is the current party the one with the provided client id. """
         return self.client_id == participant
 
-    def get_other_participants_list(self):
+    def get_other_participants_list(self) -> List[str]:
+        """ Returns list of client ids of the other participants in the protocol. """
         return [participant for participant in self.protocol_spec.participant_ids if participant != self.client_id]
 
     def get_personal_shares(self) -> Dict[bytes, list[Share]]:
+        """ Returns dict of personal secret ids as keys and list of shares as values. """
         return {secret.id: share_secret(value, self.num_participants) for secret, value in self.value_dict.items()}
 
     def disseminate_personal_shares(self, personal_shares: Dict[bytes, list[Share]]) -> Dict[bytes, Share]:
+        """ Disseminates shares of personal secrets to the other participants in the protocol. """
         shares_dict = {}
         for i in range(self.num_participants):
             for (id, shares) in personal_shares.items():
@@ -82,38 +86,59 @@ class SMCParty:
         return shares_dict
 
     def collect_secret_ids_other_parties(self):
+        """ Returns ids of all secrets in the expression except for the personal ones. """
         personal_secret_ids = [secret.id for secret in self.value_dict.keys()]
         all_secret_ids = collect_secret_ids(self.protocol_spec.expr)
         return [secret_id for secret_id in all_secret_ids if secret_id not in personal_secret_ids]
 
     def send_secret_share(self, share: ShareMessage, destination: str):
+        """ Sends a share to the provided destination. """
         self.comm.send_private_message(destination, SECRET_SHARE_LABEL + share.id, share.serialize())
 
     def retrieve_secret_share(self, secret_id: str) -> ShareMessage:
+        """ Retrieves a share for the provided secret id. """
         return ShareMessage.deserialize(self.comm.retrieve_private_message(SECRET_SHARE_LABEL + secret_id))
 
     def send_result_share(self, share: ResultShareMessage, destination: str):
+        """ Sends a share of the final result to the provided destination. """
         self.comm.send_private_message(destination, RESULT_SHARE_LABEL + self.client_id, share.serialize())
 
     def retrieve_result_share(self, participant: str) -> ResultShareMessage:
+        """ Retrieves a share of the final result from the provided participant. """
         return ResultShareMessage.deserialize(self.comm.retrieve_private_message(RESULT_SHARE_LABEL + participant))
 
     def publish_final_result(self, message: Message):
+        """ Sends the final result as public message. """
         self.comm.publish_message(PUBLISH_RESULT_LABEL, message.serialize())
 
     def retrieve_final_result(self, sender: str) -> Message:
+        """ Retrieves the final result from the provided participant. """
         return Message.deserialize(self.comm.retrieve_public_message(sender, PUBLISH_RESULT_LABEL))
 
-    def compute_delay_in_seconds(self):
-        return self.num_participants - 1
+    def send_beaver_const_share(self, share: BeaverConstShareMessage, op_id: str, destination: str):
+        """ Sends shares of beaver constants for the provided operation id to the provided destination. """
+        self.comm.send_private_message(destination, BEAVER_CONST_SHARE_LABEL + op_id + "_" + self.client_id,
+                                       share.serialize())
+
+    def retrieve_beaver_const_share(self, op_id: str, participant: str) -> BeaverConstShareMessage:
+        """ Retrieves shares of beaver constants for the provided operation id from the provided participant. """
+        return BeaverConstShareMessage.deserialize(
+            self.comm.retrieve_private_message(BEAVER_CONST_SHARE_LABEL + op_id + "_" + participant))
+
+    def publish_beaver_const_result(self, message: BeaverConstResultMessage, op_id: str):
+        """ Sends the final beaver constants for the provided operation id as public message. """
+        self.comm.publish_message(BEAVER_CONST_RESULT_LABEL + op_id, message.serialize())
+
+    def retrieve_beaver_const_result(self, sender: str, op_id: str) -> BeaverConstResultMessage:
+        """ Retrieves the final beaver constants for the provided operation id from the provided participant. """
+        return BeaverConstResultMessage.deserialize(
+            self.comm.retrieve_public_message(sender, BEAVER_CONST_RESULT_LABEL + op_id))
 
     def run(self) -> int:
         """
         The method the client use to do the SMC.
         """
         expression = self.protocol_spec.expr
-
-        # share secrets that belong to this client
         personal_shares = self.get_personal_shares()
         # send personal shares and create map of secret Share(s) per ID
         shares_dict = self.disseminate_personal_shares(personal_shares)
@@ -125,35 +150,28 @@ class SMCParty:
 
         # process locally
         final_result_share = self.process_expression(expression, shares_dict)
-        print(self.client_id + " result share: " + str(final_result_share))
+
+        # edge case where the expression to be computed consists of scalars only.
+        # every party will have the same result share, so we can just return it.
+        if isinstance(final_result_share, Constant):
+            return final_result_share.value
 
         # protocol phase one
         all_result_shares = [final_result_share]
         if not self.is_leader():
-            # send final_result_share to leader
             self.send_result_share(ResultShareMessage(final_result_share), self.get_leader())
-            time.sleep(self.compute_delay_in_seconds())
         else:
-            # wait for remaining final_result_share(s)
             other_participants = self.get_other_participants_list()
-            time.sleep(self.compute_delay_in_seconds())
             for participant in other_participants:
                 all_result_shares.append(self.retrieve_result_share(participant).share)
-            print("leader has: " + str(all_result_shares))
 
         # protocol phase two
         if self.is_leader():
-            # reconstruct and publish result
             result = reconstruct_secret(all_result_shares)
             self.publish_final_result(Message(result))
-
             return result
         else:
-            time.sleep(self.compute_delay_in_seconds())
-            # fetch public result
             result_deserialized = self.retrieve_final_result(self.get_leader())
-            print(self.client_id + " receives from leader " + str(result_deserialized))
-
             return result_deserialized.value
 
     # Suggestion: To process expressions, make use of the *visitor pattern* like so:
@@ -161,16 +179,71 @@ class SMCParty:
             self,
             expr: Expression,
             shares: Dict[bytes, Share]
-    ) -> Share:
-        # complex operation
+    ):
+        """
+        Processes an expression and returns party's share. Possibly includes communication in case of multiplication of
+        secrets.
+        """
+        # Complex operation
         if isinstance(expr, AddOperation):
             return self.process_expression(expr.left, shares) + self.process_expression(expr.right, shares)
         elif isinstance(expr, MultOperation):
-            return self.process_expression(expr.left, shares) * self.process_expression(expr.right, shares)
-        # secret
-        elif isinstance(expr, Secret):
-            return shares[expr.id]
-        # scalar
-        return Share(expr.value)
+            left_multiplier = self.process_expression(expr.left, shares)
+            right_multiplier = self.process_expression(expr.right, shares)
 
-    # Feel free to add as many methods as you want.
+            if isinstance(left_multiplier, Share) and isinstance(right_multiplier, Share):
+                # use beaver triplets
+                op_id = expr.id.decode()
+                other_participants = self.get_other_participants_list()
+                (a_share, b_share, c_share) = self.comm.retrieve_beaver_triplet_shares(op_id)
+                x_const_share = left_multiplier - a_share
+                y_const_share = right_multiplier - b_share
+
+                # exchange beaver constant shares
+                all_x_const_shares = [x_const_share]
+                all_y_const_shares = [y_const_share]
+                if not self.is_leader():
+                    self.send_beaver_const_share(BeaverConstShareMessage(x_const_share, y_const_share), op_id,
+                                                 self.get_leader())
+                else:
+                    for participant in other_participants:
+                        beaver_const_share = self.retrieve_beaver_const_share(op_id, participant)
+                        all_x_const_shares.append(beaver_const_share.x_part)
+                        all_y_const_shares.append(beaver_const_share.y_part)
+
+                # exchange final beaver constants
+                if self.is_leader():
+                    x_const = reconstruct_secret(all_x_const_shares)
+                    y_const = reconstruct_secret(all_y_const_shares)
+                    self.publish_beaver_const_result(BeaverConstResultMessage(x_const, y_const), op_id)
+                else:
+                    result_deserialized = self.retrieve_beaver_const_result(self.get_leader(), op_id)
+                    x_const = result_deserialized.x_part
+                    y_const = result_deserialized.y_part
+
+                # compute and return share
+                return self.compute_secret_multiplication_share(left_multiplier, right_multiplier, c_share, x_const,
+                                                                y_const)
+            else:
+                return left_multiplier * right_multiplier
+
+        # Secret
+        elif isinstance(expr, Secret):
+            return Share(shares[expr.id].value, self.is_leader())
+        # Scalar
+        elif isinstance(expr, Scalar):
+            return Constant(expr.value, self.is_leader())
+        else:
+            raise ValueError("unsupported expression type")
+
+    def compute_secret_multiplication_share(self, left_multiplier: Share, right_multiplier: Share, c_share: Share,
+                                            x_const: int, y_const: int):
+        """
+        Locally computes the final share of the secret multiplication.
+        """
+        base_value = (((c_share.value + ((left_multiplier.value * y_const) % FIELD_MODULUS)) % FIELD_MODULUS) + (
+                (right_multiplier.value * x_const) % FIELD_MODULUS)) % FIELD_MODULUS
+        if self.is_leader():
+            return Share((base_value - ((x_const * y_const) % FIELD_MODULUS)) % FIELD_MODULUS)
+        else:
+            return Share(base_value)
