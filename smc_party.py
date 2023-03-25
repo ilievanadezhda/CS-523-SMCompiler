@@ -208,8 +208,8 @@ class SMCParty:
                 op_id = expr.id.decode()
                 other_participants = self.get_other_participants_list()
                 (a_share, b_share, c_share) = self.comm.retrieve_beaver_triplet_shares(op_id)
-                x_const_share = Share(left_multiplier.value - a_share.value)
-                y_const_share = Share(right_multiplier.value - b_share.value)
+                x_const_share = left_multiplier - a_share
+                y_const_share = right_multiplier - b_share
 
                 # exchange beaver constant shares
                 all_x_const_shares = [x_const_share]

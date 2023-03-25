@@ -30,19 +30,19 @@ class Share:
         if isinstance(other, Share) or isinstance(other, Constant):
             return Share((self.value + other.value) % FIELD_MODULUS)
         else:
-            raise TypeError("Unsupported opperation")
+            raise TypeError("Unsupported operation")
     
     def __sub__(self, other):
         if isinstance(other, Share) or isinstance(other, Constant):
             return Share((self.value - other.value) % FIELD_MODULUS)
         else:
-            raise TypeError("Unsupported opperation")
+            raise TypeError("Unsupported operation")
     
     def __mul__(self, other):
         if isinstance(other, Constant):
             return Share((self.value * other.value) % FIELD_MODULUS)
         else:
-            raise TypeError("Beaver triplets! / Unsupported opperation")
+            raise TypeError("Beaver triplets! / Unsupported operation")
     
     def __hash__(self):
         return hash(self.value)
@@ -77,7 +77,7 @@ class Constant:
         elif isinstance(other, Constant):
             return Constant((self.value + other.value) % FIELD_MODULUS)
         else:
-            raise TypeError("Unsupported opperation")
+            raise TypeError("Unsupported operation")
     
     def __sub__(self, other):
         if isinstance(other, Share):
@@ -85,7 +85,7 @@ class Constant:
         elif isinstance(other, Constant):
             return Constant((self.value - other.value) % FIELD_MODULUS)
         else:
-            raise TypeError("Unsupported opperation")
+            raise TypeError("Unsupported operation")
 
     def __mul__(self, other):
         if isinstance(other, Share):
@@ -93,7 +93,7 @@ class Constant:
         elif isinstance(other, Constant):
             return Constant((self.value * other.value) % FIELD_MODULUS)
         else:
-            raise TypeError("Unsupported opperation")
+            raise TypeError("Unsupported operation")
 
     def __hash__(self):
         return hash(self.value)
