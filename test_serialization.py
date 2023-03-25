@@ -28,23 +28,20 @@ def test_serialize_result_share_message():
 
 
 def test_serialize_constant():
-    constant = Constant(6, True)
+    constant = Constant(6)
     serialized = constant.serialize()
     deserialized = Constant.deserialize(serialized)
 
     assert deserialized.value == constant.value
-    assert deserialized.leader_flag == constant.leader_flag
 
 
 def test_serialize_beaver_const_share_message():
-    beaver_const_share = BeaverConstShareMessage(Share(2), Share(5, True))
+    beaver_const_share = BeaverConstShareMessage(Share(2), Share(5))
     serialized = beaver_const_share.serialize()
     deserialized = BeaverConstShareMessage.deserialize(serialized)
 
     assert deserialized.x_part.value == 2
-    assert not deserialized.x_part.leader_flag
     assert deserialized.y_part.value == 5
-    assert deserialized.y_part.leader_flag
 
 
 def test_serialize_beaver_const_result_message():
