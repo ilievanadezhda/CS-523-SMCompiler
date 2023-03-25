@@ -186,11 +186,23 @@ class SMCParty:
         """
         # Complex operation
         if isinstance(expr, AddOperation):
-            return self.process_expression(expr.left, shares) + self.process_expression(expr.right, shares)
+            left_addend = self.process_expression(expr.left, shares)
+            right_addend = self.process_expression(expr.right, shares)
+            if isinstance(left_addend, Share) and isinstance(right_addend, Constant):
+                if self.is_leader():
+                    return left_addend + right_addend
+                else:
+                    return left_addend
+            elif isinstance(left_addend, Constant) and isinstance(right_addend, Share):
+                if self.is_leader():
+                    return left_addend + right_addend
+                else:
+                    return right_addend
+            else:
+                return left_addend + right_addend
         elif isinstance(expr, MultOperation):
             left_multiplier = self.process_expression(expr.left, shares)
             right_multiplier = self.process_expression(expr.right, shares)
-
             if isinstance(left_multiplier, Share) and isinstance(right_multiplier, Share):
                 # use beaver triplets
                 op_id = expr.id.decode()
@@ -226,15 +238,14 @@ class SMCParty:
                                                                 y_const)
             else:
                 return left_multiplier * right_multiplier
-
         # Secret
         elif isinstance(expr, Secret):
-            return Share(shares[expr.id].value, self.is_leader())
+            return shares[expr.id]
         # Scalar
         elif isinstance(expr, Scalar):
-            return Constant(expr.value, self.is_leader())
+            return Constant(expr.value)
         else:
-            raise ValueError("unsupported expression type")
+            raise ValueError("Unsupported expression type")
 
     def compute_secret_multiplication_share(self, left_multiplier: Share, right_multiplier: Share, c_share: Share,
                                             x_const: int, y_const: int):

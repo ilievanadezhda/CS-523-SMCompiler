@@ -92,8 +92,8 @@ class BeaverConstShareMessage:
     def deserialize(serialized) -> BeaverConstShareMessage:
         """Restore object from its serialized representation."""
         dict_obj = json.loads(serialized)
-        share_x = Share(dict_obj['x_part']['value'], dict_obj['x_part']['leader_flag'])
-        share_y = Share(dict_obj['y_part']['value'], dict_obj['y_part']['leader_flag'])
+        share_x = Share(dict_obj['x_part']['value'])
+        share_y = Share(dict_obj['y_part']['value'])
         return BeaverConstShareMessage(share_x, share_y)
 
 
