@@ -128,6 +128,32 @@ def test_mult3():
     expected = 3 * 5
     suite(parties, expr, expected)
 
+def test_mult4():
+    alice_secret1 = Secret()
+    alice_secret2 = Secret()
+
+    parties = {
+        "Alice": {alice_secret1: 300, alice_secret2: 500},
+    }
+
+    expr = Scalar(10) * alice_secret1 * alice_secret2
+    expected = (10 * 300 * 500) % 2003
+    suite(parties, expr, expected)
+
+def test_mult5():
+    alice_secret = Secret()
+    bob_secret = Secret()
+    dave_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 504},
+        "Bob": {bob_secret: 64},
+        "Dave": {dave_secret: 30},
+    }
+
+    expr = alice_secret * bob_secret * Scalar(10) * dave_secret  * Scalar(1000) * Scalar(1000)
+    expected = (504 * 64 * 10 * 30 * 1000 * 1000) % 2003
+    suite(parties, expr, expected)
 
 def test_suite0():
     """
@@ -483,4 +509,54 @@ def test_suite18():
 
     expr = Scalar(20) - alice_secret1 * alice_secret2
     expected = 20 - 3 * 5
+    suite(parties, expr, expected)
+
+
+def test_suite19():
+    """
+    f(a_1, a_2) = (K - a_1) * a_2
+    """
+    alice_secret1 = Secret()
+    alice_secret2 = Secret()
+
+    parties = {
+        "Alice": {alice_secret1: 30000, alice_secret2: 5000},
+    }
+
+    expr = Scalar(2000) - alice_secret1 - alice_secret2
+    expected = (2000 - 30000 - 5000) % 2003
+    suite(parties, expr, expected)
+
+def test_suite20():
+    """
+    f(a, b) = K
+    """
+    alice_secret = Secret()
+    bob_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 300},
+        "Bob": {bob_secret: 500},
+    }
+
+    expr = Scalar(20000)
+    expected = (20000) % 2003
+    suite(parties, expr, expected)
+
+def test_suite21():
+    """
+    f(a, b, c, d) = (a*b + c + K1*d)*(c*a*K2 - K3 - b) + K4 - a*b*c*d
+    """
+    alice_secret = Secret()
+    bob_secret = Secret()
+    charlie_secret = Secret()
+    dave_secret = Secret()
+    parties = {
+        "Alice": {alice_secret: 10},
+        "Bob": {bob_secret: 20},
+        "Charlie": {charlie_secret: 30},
+        "Dave": {dave_secret: 40},
+    }
+    expr = (alice_secret * bob_secret + charlie_secret + Scalar(2) * dave_secret) * (charlie_secret * alice_secret * Scalar(3) - Scalar(4) - bob_secret) + Scalar(5) - alice_secret * bob_secret * charlie_secret * dave_secret
+    expected = ((10 * 20 + 30 + 2 * 40) * (30 * 10 * 3 - 4 - 20) + 5 - 10 * 20 * 30 * 40) % 2003
     suite(parties, expr, expected)
