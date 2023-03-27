@@ -151,8 +151,21 @@ def test_mult5():
         "Dave": {dave_secret: 30},
     }
 
-    expr = alice_secret * bob_secret * Scalar(10) * dave_secret  * Scalar(1000) * Scalar(1000)
+    expr = alice_secret * bob_secret * Scalar(10) * dave_secret * Scalar(1000) * Scalar(1000)
     expected = (504 * 64 * 10 * 30 * 1000 * 1000) % 2003
+    suite(parties, expr, expected)
+
+def test_mult6():
+    alice_secret = Secret()
+    bob_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 504},
+        "Bob": {bob_secret: 64},
+    }
+
+    expr = alice_secret * bob_secret * alice_secret * bob_secret
+    expected = (504 * 64 * 504 * 64) % 2003
     suite(parties, expr, expected)
 
 def test_suite0():
@@ -559,4 +572,18 @@ def test_suite21():
     }
     expr = (alice_secret * bob_secret + charlie_secret + Scalar(2) * dave_secret) * (charlie_secret * alice_secret * Scalar(3) - Scalar(4) - bob_secret) + Scalar(5) - alice_secret * bob_secret * charlie_secret * dave_secret
     expected = ((10 * 20 + 30 + 2 * 40) * (30 * 10 * 3 - 4 - 20) + 5 - 10 * 20 * 30 * 40) % 2003
+    suite(parties, expr, expected)
+
+
+def test_suite22():
+    alice_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 504},
+        "Bob": {},
+        "Charlie": {}
+    }
+
+    expr = (alice_secret + Scalar(5)) + Scalar(5)
+    expected = (504 + 5 + 5) % 2003
     suite(parties, expr, expected)
