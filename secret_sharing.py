@@ -10,7 +10,7 @@ from typing import List
 
 from json_utils import json_serialize
 
-FIELD_MODULUS = 2003
+FIELD_MODULUS = 1631265511
 
 
 class Share:
