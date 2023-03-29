@@ -156,6 +156,19 @@ def test_mult5():
     expected = (504 * 64 * 10 * 30 * 1000 * 1000) % FIELD_MODULUS
     suite(parties, expr, expected)
 
+def test_mult6():
+    alice_secret = Secret()
+    bob_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 504},
+        "Bob": {bob_secret: 64},
+    }
+
+    expr = alice_secret * bob_secret * alice_secret * bob_secret
+    expected = (504 * 64 * 504 * 64) % FIELD_MODULUS
+    suite(parties, expr, expected)
+
 def test_suite0():
     """
     f(a, b) = a + b + K
@@ -560,4 +573,18 @@ def test_suite21():
     }
     expr = (alice_secret * bob_secret + charlie_secret + Scalar(2) * dave_secret) * (charlie_secret * alice_secret * Scalar(3) - Scalar(4) - bob_secret) + Scalar(5) - alice_secret * bob_secret * charlie_secret * dave_secret
     expected = ((10 * 20 + 30 + 2 * 40) * (30 * 10 * 3 - 4 - 20) + 5 - 10 * 20 * 30 * 40) % FIELD_MODULUS
+    suite(parties, expr, expected)
+
+
+def test_suite22():
+    alice_secret = Secret()
+
+    parties = {
+        "Alice": {alice_secret: 504},
+        "Bob": {},
+        "Charlie": {}
+    }
+
+    expr = (alice_secret + Scalar(5)) + Scalar(5)
+    expected = (504 + 5 + 5) % FIELD_MODULUS
     suite(parties, expr, expected)
