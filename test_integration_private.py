@@ -5,6 +5,7 @@ from expression import Scalar, Secret
 from protocol import ProtocolSpec
 from server import run
 from smc_party import SMCParty
+from secret_sharing import FIELD_MODULUS
 
 
 def smc_client(client_id, prot, value_dict, queue):
@@ -137,7 +138,7 @@ def test_mult4():
     }
 
     expr = Scalar(10) * alice_secret1 * alice_secret2
-    expected = (10 * 300 * 500) % 2003
+    expected = (10 * 300 * 500) % FIELD_MODULUS
     suite(parties, expr, expected)
 
 def test_mult5():
@@ -152,7 +153,7 @@ def test_mult5():
     }
 
     expr = alice_secret * bob_secret * Scalar(10) * dave_secret  * Scalar(1000) * Scalar(1000)
-    expected = (504 * 64 * 10 * 30 * 1000 * 1000) % 2003
+    expected = (504 * 64 * 10 * 30 * 1000 * 1000) % FIELD_MODULUS
     suite(parties, expr, expected)
 
 def test_suite0():
@@ -168,7 +169,7 @@ def test_suite0():
     }
 
     expr = alice_secret + bob_secret + Scalar(10)
-    expected = (3000 + 5000 + 10) % 2003
+    expected = (3000 + 5000 + 10) % FIELD_MODULUS
     suite(parties, expr, expected)
 
 
@@ -524,7 +525,7 @@ def test_suite19():
     }
 
     expr = Scalar(2000) - alice_secret1 - alice_secret2
-    expected = (2000 - 30000 - 5000) % 2003
+    expected = (2000 - 30000 - 5000) % FIELD_MODULUS
     suite(parties, expr, expected)
 
 def test_suite20():
@@ -540,7 +541,7 @@ def test_suite20():
     }
 
     expr = Scalar(20000)
-    expected = (20000) % 2003
+    expected = (20000) % FIELD_MODULUS
     suite(parties, expr, expected)
 
 def test_suite21():
@@ -558,5 +559,5 @@ def test_suite21():
         "Dave": {dave_secret: 40},
     }
     expr = (alice_secret * bob_secret + charlie_secret + Scalar(2) * dave_secret) * (charlie_secret * alice_secret * Scalar(3) - Scalar(4) - bob_secret) + Scalar(5) - alice_secret * bob_secret * charlie_secret * dave_secret
-    expected = ((10 * 20 + 30 + 2 * 40) * (30 * 10 * 3 - 4 - 20) + 5 - 10 * 20 * 30 * 40) % 2003
+    expected = ((10 * 20 + 30 + 2 * 40) * (30 * 10 * 3 - 4 - 20) + 5 - 10 * 20 * 30 * 40) % FIELD_MODULUS
     suite(parties, expr, expected)
