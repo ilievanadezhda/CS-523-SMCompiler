@@ -293,3 +293,24 @@ def test_suite10():
     expr = alice_secret + bob_secret * (Scalar(15) + Scalar(15) * Scalar(3))
     expected = 3 + 5 * (15 + 15 * 3)
     suite(parties, expr, expected)
+
+# # Need to tune FIELD_MODULUS before executing this test (It should be increased)
+# def test_custom_application():
+#     """
+#     f(e, u, v, c) = (e + u + 1000)*(2*v + c)
+#     """
+#     epfl_secret = Secret()
+#     unil_secret = Secret()
+#     vaud_secret = Secret()
+#     ch_secret = Secret()
+
+#     parties = {
+#         "EPFL": {epfl_secret: 100},
+#         "UNIL": {unil_secret: 200},
+#         "Canton of Vaud": {vaud_secret: 100},
+#         "Swiss Confederation": {ch_secret: 150},
+#     }
+
+#     expr = (epfl_secret + unil_secret + Scalar(1000)) * (Scalar(2) * vaud_secret + ch_secret)
+#     expected = (100 + 200 + 1000) * (2 * 100 + 150)
+#     suite(parties, expr, expected)
