@@ -5,7 +5,6 @@ Integration tests for the report analysis.
 import time
 from multiprocessing import Process, Queue
 from random import randint
-from statistics import mean
 
 from expression import Secret
 from protocol import ProtocolSpec
@@ -82,22 +81,20 @@ def suite(parties, expr, repeat_test: int = 1):
 
         experiment_sub_results.append({BYTES_KEY: total_bytes, TIME_KEY: longest_time})
 
-    to_report_time = mean(entry[TIME_KEY] for entry in experiment_sub_results)
-    to_report_bytes = mean(entry[BYTES_KEY] for entry in experiment_sub_results)
-
-    return {BYTES_KEY: to_report_bytes, TIME_KEY: to_report_time}
+    return experiment_sub_results
 
 
 def test_num_parties_effect():
     # how many times to execute protocol and compute average bytes and time to report for specified number of parties
-    num_repeats = 3
-    num_parties = [2, 10, 50, 100]
+    num_repeats = 10
+    num_parties = [2, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
     f = open("report_csv_files/rep_num_parties.csv", "at")
     f.write("number_of_parties,computation_cost,communication_cost\n")
     for parties in num_parties:
         res = execute_test(num_parties=parties, num_repeats=num_repeats)
         # report computation cost in seconds and communication cost in kilobytes
-        f.write(str(parties) + "," + str(res[TIME_KEY]) + "," + str(res[BYTES_KEY] / 1024) + "\n")
+        for subres in res:
+            f.write(str(parties) + "," + str(subres[TIME_KEY]) + "," + str(subres[BYTES_KEY] / 1024) + "\n")
     f.close()
 
 
