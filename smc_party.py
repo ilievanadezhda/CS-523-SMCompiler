@@ -22,7 +22,7 @@ from message_utils import ShareMessage, SECRET_SHARE_LABEL, RESULT_SHARE_LABEL, 
 from protocol import ProtocolSpec
 from secret_sharing import (
     share_secret, Share, Constant, reconstruct_secret, FIELD_MODULUS, )
-
+from timeit import default_timer as timer
 
 class SMCParty:
     """
@@ -53,6 +53,8 @@ class SMCParty:
         self.protocol_spec.participant_ids.sort()
         self.num_participants = len(self.protocol_spec.participant_ids)
         self.value_dict = value_dict
+        self.bytes_consumed = 0
+        self.time_consumed = 0
 
     def is_leader(self) -> bool:
         """ Should the party do the operations that are done by one party exclusively. """
@@ -97,7 +99,8 @@ class SMCParty:
 
     def retrieve_secret_share(self, secret_id: str) -> ShareMessage:
         """ Retrieves a share for the provided secret id. """
-        return ShareMessage.deserialize(self.comm.retrieve_private_message(SECRET_SHARE_LABEL + secret_id))
+        msg = self.comm.retrieve_private_message(SECRET_SHARE_LABEL + secret_id)
+        return ShareMessage.deserialize(msg)
 
     def send_result_share(self, share: ResultShareMessage, destination: str):
         """ Sends a share of the final result to the provided destination. """
@@ -105,7 +108,8 @@ class SMCParty:
 
     def retrieve_result_share(self, participant: str) -> ResultShareMessage:
         """ Retrieves a share of the final result from the provided participant. """
-        return ResultShareMessage.deserialize(self.comm.retrieve_private_message(RESULT_SHARE_LABEL + participant))
+        msg = self.comm.retrieve_private_message(RESULT_SHARE_LABEL + participant)
+        return ResultShareMessage.deserialize(msg)
 
     def publish_final_result(self, message: Message):
         """ Sends the final result as public message. """
@@ -113,7 +117,8 @@ class SMCParty:
 
     def retrieve_final_result(self, sender: str) -> Message:
         """ Retrieves the final result from the provided participant. """
-        return Message.deserialize(self.comm.retrieve_public_message(sender, PUBLISH_RESULT_LABEL))
+        msg = self.comm.retrieve_public_message(sender, PUBLISH_RESULT_LABEL)
+        return Message.deserialize(msg)
 
     def send_beaver_const_share(self, share: BeaverConstShareMessage, op_id: str, destination: str):
         """ Sends shares of beaver constants for the provided operation id to the provided destination. """
@@ -122,8 +127,9 @@ class SMCParty:
 
     def retrieve_beaver_const_share(self, op_id: str, participant: str) -> BeaverConstShareMessage:
         """ Retrieves shares of beaver constants for the provided operation id from the provided participant. """
-        return BeaverConstShareMessage.deserialize(
-            self.comm.retrieve_private_message(BEAVER_CONST_SHARE_LABEL + op_id + "_" + participant))
+        msg = self.comm.retrieve_private_message(BEAVER_CONST_SHARE_LABEL + op_id + "_" + participant)
+        self.bytes_consumed += len(msg)
+        return BeaverConstShareMessage.deserialize(msg)
 
     def publish_beaver_const_result(self, message: BeaverConstResultMessage, op_id: str):
         """ Sends the final beaver constants for the provided operation id as public message. """
@@ -131,8 +137,15 @@ class SMCParty:
 
     def retrieve_beaver_const_result(self, sender: str, op_id: str) -> BeaverConstResultMessage:
         """ Retrieves the final beaver constants for the provided operation id from the provided participant. """
-        return BeaverConstResultMessage.deserialize(
-            self.comm.retrieve_public_message(sender, BEAVER_CONST_RESULT_LABEL + op_id))
+        msg = self.comm.retrieve_public_message(sender, BEAVER_CONST_RESULT_LABEL + op_id)
+        self.bytes_consumed += len(msg)
+        return BeaverConstResultMessage.deserialize(msg)
+
+    def retrieve_beaver_triplets(self, op_id: str):
+        """ Retrieves the shares of beaver triplets for the provided operation id. """
+        triplets = self.comm.retrieve_beaver_triplet_shares(op_id)
+        self.bytes_consumed += triplets.__sizeof__()
+        return triplets
 
     def run(self) -> int:
         """
@@ -149,7 +162,10 @@ class SMCParty:
             shares_dict[secret_share.id.encode()] = secret_share.share
 
         # process locally
+        start = timer()
         final_result_share = self.process_expression(expression, shares_dict)
+        end = timer()
+        self.time_consumed = end - start
 
         # edge case where the expression to be computed consists of scalars only.
         # every party will have the same result share, so we can just return it.
@@ -207,7 +223,7 @@ class SMCParty:
                 # use beaver triplets
                 op_id = expr.id.decode()
                 other_participants = self.get_other_participants_list()
-                (a_share, b_share, c_share) = self.comm.retrieve_beaver_triplet_shares(op_id)
+                (a_share, b_share, c_share) = self.retrieve_beaver_triplets(op_id)
                 x_const_share = left_multiplier - a_share
                 y_const_share = right_multiplier - b_share
 
