@@ -100,7 +100,6 @@ class SMCParty:
     def retrieve_secret_share(self, secret_id: str) -> ShareMessage:
         """ Retrieves a share for the provided secret id. """
         msg = self.comm.retrieve_private_message(SECRET_SHARE_LABEL + secret_id)
-        self.bytes_consumed += len(msg)
         return ShareMessage.deserialize(msg)
 
     def send_result_share(self, share: ResultShareMessage, destination: str):
@@ -110,7 +109,6 @@ class SMCParty:
     def retrieve_result_share(self, participant: str) -> ResultShareMessage:
         """ Retrieves a share of the final result from the provided participant. """
         msg = self.comm.retrieve_private_message(RESULT_SHARE_LABEL + participant)
-        self.bytes_consumed += len(msg)
         return ResultShareMessage.deserialize(msg)
 
     def publish_final_result(self, message: Message):
@@ -120,7 +118,6 @@ class SMCParty:
     def retrieve_final_result(self, sender: str) -> Message:
         """ Retrieves the final result from the provided participant. """
         msg = self.comm.retrieve_public_message(sender, PUBLISH_RESULT_LABEL)
-        self.bytes_consumed += len(msg)
         return Message.deserialize(msg)
 
     def send_beaver_const_share(self, share: BeaverConstShareMessage, op_id: str, destination: str):
@@ -154,7 +151,6 @@ class SMCParty:
         """
         The method the client use to do the SMC.
         """
-        start = timer()
         expression = self.protocol_spec.expr
         personal_shares = self.get_personal_shares()
         # send personal shares and create map of secret Share(s) per ID
@@ -166,14 +162,14 @@ class SMCParty:
             shares_dict[secret_share.id.encode()] = secret_share.share
 
         # process locally
+        start = timer()
         final_result_share = self.process_expression(expression, shares_dict)
+        end = timer()
+        self.time_consumed = end - start
 
         # edge case where the expression to be computed consists of scalars only.
         # every party will have the same result share, so we can just return it.
         if isinstance(final_result_share, Constant):
-
-            end = timer()
-            self.time_consumed = end - start
             return final_result_share.value
 
         # protocol phase one
@@ -189,15 +185,9 @@ class SMCParty:
         if self.is_leader():
             result = reconstruct_secret(all_result_shares)
             self.publish_final_result(Message(result))
-
-            end = timer()
-            self.time_consumed = end - start
             return result
         else:
             result_deserialized = self.retrieve_final_result(self.get_leader())
-
-            end = timer()
-            self.time_consumed = end - start
             return result_deserialized.value
 
     # Suggestion: To process expressions, make use of the *visitor pattern* like so:

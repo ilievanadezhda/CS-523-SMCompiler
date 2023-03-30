@@ -6,7 +6,7 @@ import time
 from multiprocessing import Process, Queue
 from random import randint
 
-from expression import Secret
+from expression import Secret, Scalar
 from protocol import ProtocolSpec
 from secret_sharing import FIELD_MODULUS
 from server import run
@@ -26,8 +26,6 @@ def smc_client(client_id, prot, value_dict, queue):
     )
     cli.run()
     queue.put({BYTES_KEY: cli.bytes_consumed, TIME_KEY: cli.time_consumed})
-    # print(f"{client_id} total bytes: " + str(cli.bytes_consumed))
-    # print(f"{client_id} total time: " + str(cli.time_consumed))
 
 
 def smc_server(args):
@@ -70,16 +68,13 @@ def suite(parties, expr, repeat_test: int = 1):
     for i in range(repeat_test):
         results = run_processes(participants, *clients)
 
-        # calculate max(time_ms)
-        longest_time = max(entry[TIME_KEY] for entry in results)
+        # calculate sum(time_ms)
+        total_time = sum(entry[TIME_KEY] for entry in results)
 
         # calculate sum(bytes)
         total_bytes = sum(entry[BYTES_KEY] for entry in results)
 
-        # print("Execution time: i=" + str(i) + ": " + str(longest_time))
-        # print("Total bytes consumed: i=" + str(i) + ": " + str(total_bytes))
-
-        experiment_sub_results.append({BYTES_KEY: total_bytes, TIME_KEY: longest_time})
+        experiment_sub_results.append({BYTES_KEY: total_bytes, TIME_KEY: total_time})
 
     return experiment_sub_results
 
@@ -99,16 +94,14 @@ def test_num_parties_effect():
 
 
 def execute_test(num_parties: int = 2, num_repeats: int = 3):
-    secrets = []
-    parties = {}
+    alice_secret = Secret()
+    bob_secret = Secret()
+    parties = {'Alice': {alice_secret: randint(0, FIELD_MODULUS - 1)},
+               'Bob': {bob_secret: randint(0, FIELD_MODULUS - 1)}}
 
-    for i in range(num_parties):
-        sec_i = Secret()
-        secrets.append(sec_i)
-        parties["party" + str(i)] = {sec_i: randint(0, FIELD_MODULUS - 1)}
+    for i in range(num_parties - 2):
+        parties["party" + str(i)] = {}
 
-    expr = secrets[0]
-    for i in range(num_parties):
-        if i != 0:
-            expr = expr + secrets[i]
+    expr = ((alice_secret + bob_secret) * alice_secret + Scalar(randint(0, FIELD_MODULUS - 1))) * Scalar(
+        randint(0, FIELD_MODULUS - 1))
     return suite(parties, expr, num_repeats)
